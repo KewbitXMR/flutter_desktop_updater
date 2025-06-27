@@ -98,7 +98,11 @@ Future<void> main(List<String> args) async {
         "Products",
         "Release"
       ),
-    buildDir = await findFirstAppBundle(buildDir);
+    var appBundle = await findFirstAppBundle(buildDir);
+    if (appBundle != null) {
+      buildDir = appBundle
+    } else {
+      buildDir = path.join(buildDir, appNamePubspec)
     );
   } else if (platform == "linux") {
     buildDir = Directory(
