@@ -152,8 +152,7 @@ Future<void> main(List<String> args) async {
   // Get current build name and number from pubspec.yaml
   final pubspec = File("pubspec.yaml");
   final pubspecContent = await pubspec.readAsString();
-  final appNamePubspec =
-      RegExp(r"name: (.+)").firstMatch(pubspecContent)!.group(1);
+  final appNamePubspec = "Haveno";
 
   if (platform == "windows") {
     await copyDirectory(
