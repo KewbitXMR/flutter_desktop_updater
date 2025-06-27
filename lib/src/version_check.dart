@@ -129,38 +129,19 @@ Future<ItemModel?> versionCheckFunction({
 
       final newHashFileUrl = "${latestVersion.url}/hashes.json";
 
-      // GET request
-      final newHashFileRequest = await client.getUrl(Uri.parse(newHashFileUrl));
-      final newHashFileResponse = await newHashFileRequest.close();
-
-      // Print response
-      print(await utf8.decodeStream(newHashFileResponse));
+      // Prepare the request via SOCKS5 proxy
+      final request = await client.getUrl(Uri.parse(newHashFileUrl));
+      final response = await request.close();
       
-      // Close client
-      client.close();
-
-      if (newHashFileResponse.statusCode != 200) {
-        client.close();
-        throw const HttpException("Failed to download hashes.json");
+      if (response.statusCode != 200) {
+        throw HttpException("Failed to download hashes.json (${response.statusCode})");
       }
-
-      final outputFile =
-          File("${tempDir.path}${Platform.pathSeparator}hashes.json");
-      final sink = outputFile.openWrite();
-
-      await newHashFileResponse.stream.listen(
-        sink.add,
-        onDone: () async {
-          await sink.close();
-          client.close();
-        },
-        onError: (e) async {
-          await sink.close();
-          client.close();
-          throw e;
-        },
-        cancelOnError: true,
-      ).asFuture();
+      
+      // Write the response directly to a file
+      final outputFile = File("${tempDir.path}${Platform.pathSeparator}hashes.json");
+      final outputSink = outputFile.openWrite();
+      await response.pipe(outputSink);
+      await outputSink.close();
 
       final oldHashFilePath = await genFileHashes();
       final newHashFilePath = outputFile.path;
