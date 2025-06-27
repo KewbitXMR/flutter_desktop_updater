@@ -101,7 +101,7 @@ Future<void> main(List<String> args) async {
     )
     var appBundle = (await findFirstAppBundle(buildDir.path));
     if (appBundle != null) {
-      buildDir = Directory(appBundle);
+      buildDir = Directory(appBundle.path);
     } else {
       buildDir = Directory(path.join(buildDir.path, appNamePubspec));
     }
