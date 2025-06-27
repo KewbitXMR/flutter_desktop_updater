@@ -99,7 +99,7 @@ Future<void> main(List<String> args) async {
         "Release"
       )
     )
-    var appBundle = await findFirstAppBundle(buildDir.path);
+    var appBundle = (await findFirstAppBundle(buildDir.path));
     if (appBundle != null) {
       buildDir = Directory(appBundle);
     } else {
