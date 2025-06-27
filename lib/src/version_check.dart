@@ -5,7 +5,7 @@ import "package:desktop_updater/desktop_updater.dart";
 import "package:desktop_updater/src/file_hash.dart";
 import "package:http/http.dart" as http;
 import "package:path/path.dart" as path;
-import 'package:socks_proxy/socks_client.dart';
+import 'package:socks5_proxy/socks_client.dart';
 
 Future<ItemModel?> versionCheckFunction({
   required String appArchiveUrl,
