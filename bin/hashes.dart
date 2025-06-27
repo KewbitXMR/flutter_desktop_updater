@@ -6,14 +6,8 @@ import "package:desktop_updater/src/app_archive.dart";
 
 Future<String> getFileHash(File file) async {
   try {
-    // Dosya içeriğini okuyun
     final List<int> fileBytes = await file.readAsBytes();
-
-    // blake2s algoritmasıyla hash hesaplayın
-
     final hash = await Blake2b().hash(fileBytes);
-
-    // Hash'i utf-8 base64'e dönüştürün ve geri döndürün
     return base64.encode(hash.bytes);
   } catch (e) {
     print("Error reading file ${file.path}: $e");
@@ -29,31 +23,20 @@ Future<String?> genFileHashes({required String? path}) async {
   }
 
   final dir = Directory(path);
-
   print("Directory path: ${dir.path}");
 
-  // Eğer belirtilen yol bir dizinse
   if (await dir.exists()) {
-    // temp dizinindeki dosyaları kopyala
-    // dir + output.txt dosyası oluşturulur
     final outputFile = File("${dir.path}${Platform.pathSeparator}hashes.json");
-
-    // Çıktı dosyasını açıyoruz
     final sink = outputFile.openWrite();
-
-    // ignore: prefer_final_locals
     var hashList = <FileHashModel>[];
 
-    // Dizin içindeki tüm dosyaları döngüyle okuyoruz
     await for (final entity in dir.list(recursive: true, followLinks: false)) {
       if (entity is File &&
           !entity.path.endsWith("hashes.json") &&
           !entity.path.endsWith(".DS_Store")) {
-        // Dosyanın hash'ini al
         final hash = await getFileHash(entity);
         final foundPath = entity.path.substring(dir.path.length + 1);
 
-        // Dosya yolunu ve hash değerini yaz
         if (hash.isNotEmpty) {
           final hashObj = FileHashModel(
             filePath: foundPath,
@@ -65,16 +48,66 @@ Future<String?> genFileHashes({required String? path}) async {
       }
     }
 
-    // Dosya hash'lerini json formatına çevir
     final jsonStr = jsonEncode(hashList);
-
-    // Çıktı dosyasına yaz
     sink.write(jsonStr);
-
-    // Çıktıyı kaydediyoruz
     await sink.close();
     return outputFile.path;
   } else {
     throw Exception("Desktop Updater: Directory does not exist");
   }
+}
+
+Future<void> main(List<String> args) async {
+  if (args.isEmpty) {
+    print("PLATFORM must be specified: macos, windows, linux");
+    exit(1);
+  }
+
+  final platform = args[0];
+  if (!['macos', 'windows', 'linux'].contains(platform)) {
+    print("Invalid PLATFORM: must be macos, windows, or linux");
+    exit(1);
+  }
+
+  final buildDir = Directory("build/$platform/Build/Products/Release");
+  if (!await buildDir.exists()) {
+    print("Build directory not found for platform: $platform");
+    exit(1);
+  }
+
+  final pubspec = File("pubspec.yaml");
+  final pubspecContent = await pubspec.readAsString();
+  final versionMatch = RegExp(r'version:\s*(\S+)').firstMatch(pubspecContent);
+  final nameMatch = RegExp(r'name:\s*(\S+)').firstMatch(pubspecContent);
+
+  if (versionMatch == null || nameMatch == null) {
+    print("Failed to read name/version from pubspec.yaml");
+    exit(1);
+  }
+
+  final version = versionMatch.group(1)!;
+  final appName = nameMatch.group(1)!;
+  final distDir = Directory("dist/$version");
+  await distDir.create(recursive: true);
+
+  Directory? targetDir;
+  if (platform == 'macos') {
+    final appDirs = buildDir.listSync().whereType<Directory>()
+        .where((d) => d.path.endsWith(".app"));
+    if (appDirs.isEmpty) {
+      print("No .app directory found in macOS build folder");
+      exit(1);
+    }
+    targetDir = Directory("${appDirs.first.path}/Contents");
+  } else {
+    targetDir = buildDir;
+  }
+
+  await genFileHashes(path: targetDir.path);
+  final outputFile = File("${distDir.path}/${platform}-hashes.json");
+  final sourceHashes = File("${targetDir.path}/hashes.json");
+  await sourceHashes.copy(outputFile.path);
+  await sourceHashes.delete();
+
+  print("✅ Hashes saved to ${outputFile.path}");
 }
