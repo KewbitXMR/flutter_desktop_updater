@@ -5,6 +5,7 @@ import "package:desktop_updater/desktop_updater.dart";
 import "package:desktop_updater/src/file_hash.dart";
 import "package:http/http.dart" as http;
 import "package:path/path.dart" as path;
+import 'package:socks_proxy/socks_client.dart';
 
 Future<ItemModel?> versionCheckFunction({
   required String appArchiveUrl,
@@ -114,17 +115,29 @@ Future<ItemModel?> versionCheckFunction({
       // calculate totalSize
       final tempDir = await Directory.systemTemp.createTemp("desktop_updater");
 
-      final client = http.Client();
+      //final client = http.Client();
 
       print("Downloading hashes file");
 
+      // Create HttpClient object
+      final client = HttpClient();
+
+      // Assign connection factory
+      SocksTCPClient.assignToHttpClient(client, [
+        ProxySettings(InternetAddress.loopbackIPv4, 9066),
+      ]);
+
       final newHashFileUrl = "${latestVersion.url}/hashes.json";
-      final newHashFileRequest = http.Request("GET", Uri.parse(newHashFileUrl));
-      final newHashFileResponse = await client.send(newHashFileRequest).timeout(Duration(seconds: 30));
+
+      // GET request
+      final newHashFileRequest = await client.getUrl(Uri.parse(newHashFileUrl));
+      final newHashFileResponse = await request.close();
+      // Print response
+      print(await utf8.decodeStream(newHashFileResponse));
+      // Close client
+      client.close();
 
       if (newHashFileResponse.statusCode != 200) {
-        print(newHashFileResponse.statusCode);
-        print(newHashFileResponse.reasonPhrase);
         client.close();
         throw const HttpException("Failed to download hashes.json");
       }
