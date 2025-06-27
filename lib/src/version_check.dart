@@ -131,9 +131,11 @@ Future<ItemModel?> versionCheckFunction({
 
       // GET request
       final newHashFileRequest = await client.getUrl(Uri.parse(newHashFileUrl));
-      final newHashFileResponse = await request.close();
+      final newHashFileResponse = await newHashFileRequest.close();
+
       // Print response
       print(await utf8.decodeStream(newHashFileResponse));
+      
       // Close client
       client.close();
 
