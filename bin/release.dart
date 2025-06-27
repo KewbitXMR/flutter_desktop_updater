@@ -164,6 +164,7 @@ Future<void> copyDirectory(Directory source, Directory destination) async {
       await copyDirectory(entity, Directory(newPath));
     }
   }
+}
 
 /// Finds the first `.app` bundle in the specified directory.
 /// Returns null if not found.
@@ -177,6 +178,4 @@ Future<FileSystemEntity?> findFirstAppBundle(String directoryPath) async {
       .firstWhere(
         (entity) => entity.path.endsWith('.app')
       );
-}
-  
 }
