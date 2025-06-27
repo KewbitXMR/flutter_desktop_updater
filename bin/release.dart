@@ -96,9 +96,9 @@ Future<void> main(List<String> args) async {
         "macos",
         "Build",
         "Products",
-        "Release",
-        "$appNamePubspec.app",
+        "Release"
       ),
+    buildDir = await findFirstAppBundle(buildDir);
     );
   } else if (platform == "linux") {
     buildDir = Directory(
@@ -115,19 +115,19 @@ Future<void> main(List<String> args) async {
       ? path.join(
           "dist",
           buildNumber,
-          "$appNamePubspec-$buildName+$buildNumber-$platform",
+          "Haveno-$buildName+$buildNumber-$platform",
         )
       : platform == "macos"
           ? path.join(
               "dist",
               buildNumber,
-              "$appNamePubspec-$buildName+$buildNumber-$platform",
-              "$appNamePubspec.app",
+              "Haveno-$buildName+$buildNumber-$platform",
+              "Haveno.app",
             )
           : path.join(
               "dist",
               buildNumber,
-              "$appNamePubspec-$buildName+$buildNumber-$platform",
+              "Haveno-$buildName+$buildNumber-$platform",
             );
 
   final distDir = Directory(distPath);
@@ -159,4 +159,20 @@ Future<void> copyDirectory(Directory source, Directory destination) async {
       await copyDirectory(entity, Directory(newPath));
     }
   }
+
+/// Finds the first `.app` bundle in the specified directory.
+/// Returns null if not found.
+Future<FileSystemEntity?> findFirstAppBundle(String directoryPath) async {
+  final dir = Directory(directoryPath);
+
+  if (!await dir.exists()) return null;
+
+  return await dir
+      .list()
+      .firstWhere(
+        (entity) => entity.path.endsWith('.app'),
+        orElse: () => null,
+      );
+}
+  
 }
