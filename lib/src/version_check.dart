@@ -5,7 +5,6 @@ import "package:desktop_updater/desktop_updater.dart";
 import "package:desktop_updater/src/file_hash.dart";
 import "package:http/http.dart" as http;
 import "package:path/path.dart" as path;
-import 'package:socks5_proxy/socks_client.dart';
 
 Future<ItemModel?> versionCheckFunction({
   required String appArchiveUrl,
@@ -115,33 +114,36 @@ Future<ItemModel?> versionCheckFunction({
       // calculate totalSize
       final tempDir = await Directory.systemTemp.createTemp("desktop_updater");
 
-      //final client = http.Client();
+      final client = http.Client();
 
       print("Downloading hashes file");
 
-      // Create HttpClient object
-      final client = HttpClient();
-
-      // Assign connection factory
-      SocksTCPClient.assignToHttpClient(client, [
-        ProxySettings(InternetAddress.loopbackIPv4, 9066),
-      ]);
-
       final newHashFileUrl = "${latestVersion.url}/hashes.json";
+      final newHashFileRequest = http.Request("GET", Uri.parse(newHashFileUrl));
+      final newHashFileResponse = await client.send(newHashFileRequest);
 
-      // Prepare the request via SOCKS5 proxy
-      final request = await client.getUrl(Uri.parse(newHashFileUrl));
-      final response = await request.close();
-      
-      if (response.statusCode != 200) {
-        throw HttpException("Failed to download hashes.json (${response.statusCode})");
+      if (newHashFileResponse.statusCode != 200) {
+        client.close();
+        throw const HttpException("Failed to download hashes.json");
       }
-      
-      // Write the response directly to a file
-      final outputFile = File("${tempDir.path}${Platform.pathSeparator}hashes.json");
-      final outputSink = outputFile.openWrite();
-      await response.pipe(outputSink);
-      await outputSink.close();
+
+      final outputFile =
+          File("${tempDir.path}${Platform.pathSeparator}hashes.json");
+      final sink = outputFile.openWrite();
+
+      await newHashFileResponse.stream.listen(
+        sink.add,
+        onDone: () async {
+          await sink.close();
+          client.close();
+        },
+        onError: (e) async {
+          await sink.close();
+          client.close();
+          throw e;
+        },
+        cancelOnError: true,
+      ).asFuture();
 
       final oldHashFilePath = await genFileHashes();
       final newHashFilePath = outputFile.path;
