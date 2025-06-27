@@ -120,9 +120,11 @@ Future<ItemModel?> versionCheckFunction({
 
       final newHashFileUrl = "${latestVersion.url}/hashes.json";
       final newHashFileRequest = http.Request("GET", Uri.parse(newHashFileUrl));
-      final newHashFileResponse = await client.send(newHashFileRequest);
+      final newHashFileResponse = await client.send(newHashFileRequest).timeout(Duration(seconds: 30));
 
       if (newHashFileResponse.statusCode != 200) {
+        print(newHashFileResponse.statusCode);
+        print(newHashFileResponse.reasonPhrase);
         client.close();
         throw const HttpException("Failed to download hashes.json");
       }
