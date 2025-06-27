@@ -171,7 +171,7 @@ Future<FileSystemEntity?> findFirstAppBundle(String directoryPath) async {
       .list()
       .firstWhere(
         (entity) => entity.path.endsWith('.app'),
-        orElse: () => null,
+        orElse: () => $appNamePubspec,
       );
 }
   
