@@ -1,8 +1,87 @@
 import "dart:convert";
 import "dart:io";
 
+import "package:cryptography_plus/cryptography_plus.dart";
+import "package:desktop_updater/src/app_archive.dart";
 import "package:path/path.dart" as path;
 import "package:pubspec_parse/pubspec_parse.dart";
+
+import "helper/copy.dart";
+
+Future<String> getFileHash(File file) async {
+  try {
+    // Dosya içeriğini okuyun
+    final List<int> fileBytes = await file.readAsBytes();
+
+    // blake2s algoritmasıyla hash hesaplayın
+
+    final hash = await Blake2b().hash(fileBytes);
+
+    // Hash'i utf-8 base64'e dönüştürün ve geri döndürün
+    return base64.encode(hash.bytes);
+  } catch (e) {
+    print("Error reading file ${file.path}: $e");
+    return "";
+  }
+}
+
+Future<String?> genFileHashes({required String? path}) async {
+  print("Generating file hashes for $path");
+
+  if (path == null) {
+    throw Exception("Desktop Updater: Executable path is null");
+  }
+
+  final dir = Directory(path);
+
+  print("Directory path: ${dir.path}");
+
+  // Eğer belirtilen yol bir dizinse
+  if (await dir.exists()) {
+    // temp dizinindeki dosyaları kopyala
+    // dir + output.txt dosyası oluşturulur
+    final outputFile = File("${dir.path}${Platform.pathSeparator}hashes.json");
+
+    // Çıktı dosyasını açıyoruz
+    final sink = outputFile.openWrite();
+
+    // ignore: prefer_final_locals
+    var hashList = <FileHashModel>[];
+
+    // Dizin içindeki tüm dosyaları döngüyle okuyoruz
+    await for (final entity in dir.list(recursive: true, followLinks: false)) {
+      if (entity is File &&
+          !entity.path.endsWith("hashes.json") &&
+          !entity.path.endsWith(".DS_Store")) {
+        // Dosyanın hash'ini al
+        final hash = await getFileHash(entity);
+        final foundPath = entity.path.substring(dir.path.length + 1);
+
+        // Dosya yolunu ve hash değerini yaz
+        if (hash.isNotEmpty) {
+          final hashObj = FileHashModel(
+            filePath: foundPath,
+            calculatedHash: hash,
+            length: entity.lengthSync(),
+          );
+          hashList.add(hashObj);
+        }
+      }
+    }
+
+    // Dosya hash'lerini json formatına çevir
+    final jsonStr = jsonEncode(hashList);
+
+    // Çıktı dosyasına yaz
+    sink.write(jsonStr);
+
+    // Çıktıyı kaydediyoruz
+    await sink.close();
+    return outputFile.path;
+  } else {
+    throw Exception("Desktop Updater: Directory does not exist");
+  }
+}
 
 Future<void> main(List<String> args) async {
   if (args.isEmpty) {
@@ -22,160 +101,88 @@ Future<void> main(List<String> args) async {
 
   /// Only base version 1.0.0
   final buildName = "${parsed.version?.major}.${parsed.version?.minor}.${parsed.version?.patch}";
-  final buildNumber = parsed.version?.build.firstOrNull.toString();
 
-  print(
-    "Building version $buildName+$buildNumber for $platform for app ${parsed.name}",
-  );
+  // Go to dist directory and get all folder names
+  final distStagedDir = Directory("dist/updater/staged/");
+  final distReleaseDir = Directory("dist/updater/release/");
 
-  final appNamePubspec = parsed.name;
-
-  // Get flutter path
-  final flutterPath = Platform.environment["FLUTTER_ROOT"];
-
-  if (flutterPath == null || flutterPath.isEmpty) {
-    print("FLUTTER_ROOT environment variable is not set");
+  if (!await distStagedDir.exists()) {
+    print("You must first run 'dart run desktop_updater:prepare $platform' to prepare the files.");
     exit(1);
   }
 
-  // Print current working directory
-  print("Current working directory: ${Directory.current.path}");
 
-  // Determine the Flutter executable based on the platform
-  var flutterExecutable = "flutter";
-  if (Platform.isWindows) {
-    flutterExecutable += ".bat";
-  }
 
-  final flutterBinPath = path.join(flutterPath, "bin", flutterExecutable);
+  /// Check if the file is a zip file
+  // if (!foundDirectory.endsWith(".app")) {
+  //   print("File is not a zip file");
+  //   exit(1);
+  // }
 
-  if (!File(flutterBinPath).existsSync()) {
-    print("Flutter executable not found at path: $flutterBinPath");
-    exit(1);
-  }
+  Directory? bundleReleaseDestDir;
 
-  final buildCommand = [
-    flutterBinPath,
-    "build",
-    platform,
-    "--dart-define",
-    "FLUTTER_BUILD_NAME=$buildName",
-    "--dart-define",
-    "FLUTTER_BUILD_NUMBER=$buildNumber",
-  ];
-
-  print("Executing build command: ${buildCommand.join(' ')}");
-
-  // Replace Process.run with Process.start to handle real-time output
-  final process = await Process.start(buildCommand.first, buildCommand.sublist(1));
-
-  process.stdout.transform(utf8.decoder).listen(print);
-  process.stderr.transform(utf8.decoder).listen((data) {
-    stderr.writeln(data);
-  });
-
-  final exitCode = await process.exitCode;
-  if (exitCode != 0) {
-    stderr.writeln("Build failed with exit code $exitCode");
-    exit(1);
-  }
-
-  print("Build completed successfully");
-
-  late Directory buildDir;
-
-  // Determine the build directory based on the platform
   if (platform == "windows") {
-    buildDir = Directory(
-      path.join("build", "windows", "x64", "runner", "Release"),
+    bundleReleaseDestDir = Directory(
+      path.join(
+        distReleaseDir.path,
+        buildName,
+        "$platform-bundle",
+      ),
+    );
+    await copyDirectory(
+      Directory(
+        path.join(
+          distStagedDir.path,
+          buildName,
+          "$platform-bundle",
+        ),
+      ),
+      bundleReleaseDestDir,
     );
   } else if (platform == "macos") {
-    buildDir = Directory(
+    bundleReleaseDestDir = Directory(
       path.join(
-        "build",
-        "macos",
-        "Build",
-        "Products",
-        "Release"
-      )
+        distReleaseDir.path,
+        buildName,
+        "$platform-bundle",
+      ),
     );
-    var appBundle = (await findFirstAppBundle(buildDir.path));
-    if (appBundle != null) {
-      buildDir = Directory(appBundle.path);
-    } else {
-      buildDir = Directory(path.join(buildDir.path, appNamePubspec));
-    }
+    await copyDirectory(
+      Directory(
+        path.join(
+          distStagedDir.path,
+          buildName,
+          "$platform-bundle",
+        ),
+      ),
+      bundleReleaseDestDir,
+    );
   } else if (platform == "linux") {
-    buildDir = Directory(
-      path.join("build", "linux", "x64", "release", "bundle"),
+    bundleReleaseDestDir = Directory(
+      path.join(
+        distReleaseDir.path,
+        buildName,
+        "$platform-bundle",
+      ),
     );
-  }
-
-  if (!buildDir.existsSync()) {
-    print("Build directory not found: ${buildDir.path}");
+    await copyDirectory(
+      Directory(
+        path.join(
+          distStagedDir.path,
+          buildName,
+          "$platform-bundle",
+        ),
+      ),
+      bundleReleaseDestDir,
+    );
+  } else {
+    print("Unsupported platform: $platform");
     exit(1);
   }
 
-  final distPath = platform == "windows"
-      ? path.join(
-          "dist",
-          buildNumber,
-          "Haveno-$buildName+$buildNumber-$platform",
-        )
-      : platform == "macos"
-          ? path.join(
-              "dist",
-              buildNumber,
-              "Haveno-$buildName+$buildNumber-$platform",
-              "Haveno.app",
-            )
-          : path.join(
-              "dist",
-              buildNumber,
-              "Haveno-$buildName+$buildNumber-$platform",
-            );
+  await genFileHashes(
+    path: bundleReleaseDestDir.path,
+  );
 
-  final distDir = Directory(distPath);
-  if (distDir.existsSync()) {
-    distDir.deleteSync(recursive: true);
-  }
-
-  // Copy buildDir to distPath
-  await copyDirectory(buildDir, Directory(distPath));
-
-  print("Archive created at $distPath");
-}
-
-// Helper function to copy directories recursively
-Future<void> copyDirectory(Directory source, Directory destination) async {
-  if (!destination.existsSync()) {
-    destination.createSync(recursive: true);
-  }
-
-  await for (final entity in source.list(recursive: false, followLinks: false)) {
-    final newPath = path.join(destination.path, path.basename(entity.path));
-
-    if (entity is Link) {
-      final target = await entity.target();
-      await Link(newPath).create(target, recursive: true);
-    } else if (entity is File) {
-      await File(entity.path).copy(newPath);
-    } else if (entity is Directory) {
-      await copyDirectory(entity, Directory(newPath));
-    }
-  }
-}
-
-/// Finds the first `.app` bundle in the specified directory.
-/// Returns null if not found.
-Future<FileSystemEntity?> findFirstAppBundle(String directoryPath) async {
-  final dir = Directory(directoryPath);
-
-  if (!await dir.exists()) return null;
-
-  return await dir
-      .list()
-      .firstWhere(
-        (entity) => entity.path.endsWith('.app')
-      );
+  return;
 }
