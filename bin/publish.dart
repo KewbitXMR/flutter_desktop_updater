@@ -1,8 +1,6 @@
 import "dart:io";
 
-import "package:desktop_updater/src/config/reader.dart";
 import "package:desktop_updater/src/uploader/ssh_uploader.dart";
-import "package:path/path.dart" as path;
 import "package:pubspec_parse/pubspec_parse.dart";
 import "package:yaml/yaml.dart";
 import "helper/bootstrap_config.dart";
@@ -39,21 +37,21 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final failedFlag = File('.failed_upload');
+  final failedFlag = File(".failed_upload");
   bool shouldRetry = false;
 
   if (await failedFlag.exists()) {
-    stdout.write('⚠️ Previous upload attempt detected. Replace existing remote files? (y/N): ');
+    stdout.write("⚠️ Previous upload attempt detected. Replace existing remote files? (y/N): ");
     final response = stdin.readLineSync()?.toLowerCase().trim();
-    if (response != 'y') {
-      print('Aborting upload.');
+    if (response != "y") {
+      print("Aborting upload.");
       return;
     }
     shouldRetry = true;
   }
 
   switch (method) {
-    case 'ssh':
+    case "ssh":
       await uploadViaSSH(config, version, platformStr, localDir, shouldRetry);
       break;
     default:
