@@ -131,7 +131,6 @@ Future<void> main(List<String> args) async {
               "staged",
               buildName,
               "$platform-bundle",
-              "Haveno.app",
             )
           : path.join(
               "dist",
@@ -179,9 +178,9 @@ Future<FileSystemEntity?> findFirstAppBundle(String directoryPath) async {
 
   if (!await dir.exists()) return null;
 
-  return await dir
+  return dir
       .list()
       .firstWhere(
-        (entity) => entity.path.endsWith('.app')
+        (entity) => entity.path.endsWith(".app"),
       );
 }

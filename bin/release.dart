@@ -111,14 +111,6 @@ Future<void> main(List<String> args) async {
     exit(1);
   }
 
-
-
-  /// Check if the file is a zip file
-  // if (!foundDirectory.endsWith(".app")) {
-  //   print("File is not a zip file");
-  //   exit(1);
-  // }
-
   Directory? bundleReleaseDestDir;
 
   if (platform == "windows") {
