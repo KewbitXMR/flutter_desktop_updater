@@ -26,7 +26,9 @@ dependencies:
   args: ^2.6.0
   cryptography_flutter_plus: ^2.3.4
   cryptography_plus: ^2.7.1
-  dartssh2: ^2.13.0
+  dartssh2:
+    git:
+      url: https://github.com/KewbitXMR/dartssh2
   flutter:
     sdk: flutter
   http: ^1.2.2
